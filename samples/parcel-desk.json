@@ -1,0 +1,260 @@
+{
+  "name": "Parcel Desk",
+  "description": "Answers customer questions about parcels: where it is, when it arrives, and how to redirect it.",
+  "instructions": "You are the support assistant for a small online shop that ships with ParcelDesk.\n\n- When the user gives a tracking number, call getShipment and report the status, the last scan location and the estimated delivery date in one or two sentences.\n- If they only have an order email, call searchShipments with that email and ask which parcel they mean if there are several.\n- To change the delivery address, confirm the new address back to the user first, then call redirectShipment. Tell them redirects are only possible before the parcel is out for delivery.\n- If the user wants to know which pickup points are near a postcode, call listPickupPoints.\n\nNever show the internal carrier_ref field. If the API returns an error, say tracking is unavailable right now and suggest trying again in a few minutes; do not guess a status.",
+  "conversation_starters": [
+    "Where is my parcel PD-48213377?",
+    "Find the parcels for sam@example.com",
+    "Can I send it to a pickup point near BS1 4DJ instead?"
+  ],
+  "knowledge_files": [
+    "returns-policy.md"
+  ],
+  "capabilities": [],
+  "actions": [
+    {
+      "auth": {
+        "type": "api_key",
+        "auth_type": "custom",
+        "custom_header_name": "X-ParcelDesk-Key"
+      },
+      "privacy_policy_url": "https://parceldesk.example/privacy",
+      "schema": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "ParcelDesk Tracking API",
+          "version": "2.3"
+        },
+        "servers": [
+          {
+            "url": "https://api.parceldesk.example/v2"
+          }
+        ],
+        "paths": {
+          "/shipments/{tracking_number}": {
+            "get": {
+              "operationId": "getShipment",
+              "summary": "Get one shipment by tracking number",
+              "parameters": [
+                {
+                  "name": "tracking_number",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "pattern": "^PD-[0-9]{8}$"
+                  },
+                  "description": "Tracking number, e.g. PD-48213377"
+                },
+                {
+                  "name": "include_events",
+                  "in": "query",
+                  "schema": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "description": "Include the full scan history"
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The shipment",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Shipment"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/shipments": {
+            "get": {
+              "operationId": "searchShipments",
+              "summary": "Search shipments by recipient email",
+              "parameters": [
+                {
+                  "name": "email",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                },
+                {
+                  "name": "status",
+                  "in": "query",
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "created",
+                        "in_transit",
+                        "out_for_delivery",
+                        "delivered",
+                        "returned"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "limit",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "default": 10
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Matching shipments"
+                }
+              }
+            }
+          },
+          "/shipments/{tracking_number}/redirect": {
+            "post": {
+              "operationId": "redirectShipment",
+              "summary": "Redirect a shipment to a new address or pickup point",
+              "x-openai-isConsequential": true,
+              "parameters": [
+                {
+                  "name": "tracking_number",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "name": "Idempotency-Key",
+                  "in": "header",
+                  "schema": {
+                    "type": "string"
+                  },
+                  "description": "Any unique string; repeat it to retry safely"
+                }
+              ],
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Redirect"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "202": {
+                  "description": "Redirect accepted"
+                }
+              }
+            }
+          },
+          "/pickup-points": {
+            "get": {
+              "operationId": "listPickupPoints",
+              "summary": "List pickup points near a postcode",
+              "parameters": [
+                {
+                  "name": "postcode",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "name": "radius_km",
+                  "in": "query",
+                  "schema": {
+                    "type": "number",
+                    "default": 5
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Pickup points"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {
+            "Address": {
+              "type": "object",
+              "required": [
+                "line1",
+                "city",
+                "postcode",
+                "country"
+              ],
+              "properties": {
+                "line1": {
+                  "type": "string"
+                },
+                "line2": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "city": {
+                  "type": "string"
+                },
+                "postcode": {
+                  "type": "string"
+                },
+                "country": {
+                  "type": "string",
+                  "description": "ISO 3166-1 alpha-2"
+                }
+              }
+            },
+            "Redirect": {
+              "type": "object",
+              "properties": {
+                "address": {
+                  "$ref": "#/components/schemas/Address"
+                },
+                "pickup_point_id": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              }
+            },
+            "Shipment": {
+              "type": "object",
+              "properties": {
+                "tracking_number": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "eta": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "destination": {
+                  "$ref": "#/components/schemas/Address"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

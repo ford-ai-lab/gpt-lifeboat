@@ -1,0 +1,36 @@
+{
+  "name": "Studio Booking Concierge",
+  "description": "Books, moves and cancels yoga and pilates classes for studio members.",
+  "instructions": "You help members of Tide Yoga Studio manage their class bookings through the StudioBook action.\n\nAlways start by calling listMyBookings so you know what the member already has.\n\nBooking: use list-classes to find the class (ask for the day if they did not say), read the class name, teacher and start time back, and only call createBooking after the member says yes.\nChanging: use updateBooking for guest count or notes. A different class means cancel and rebook; say so first.\nCancelling: cancelBooking. Remind them that cancellations inside 12 hours lose the credit (see studio-policies.pdf).\n\nIf a member asks for their monthly attendance as a chart, use Code Interpreter to draw it from the bookings list.\nTimes are in the studio's local time. Do not discuss other members' bookings.",
+  "conversation_starters": [
+    "What am I booked into this week?",
+    "Book me into Thursday's 6pm flow class",
+    "Cancel my Saturday class",
+    "Add a guest to my next booking"
+  ],
+  "knowledge_files": [
+    {
+      "name": "studio-policies.pdf",
+      "description": "Cancellation, guest and late-arrival rules"
+    },
+    {
+      "name": "timetable-winter.csv"
+    }
+  ],
+  "capabilities": {
+    "code_interpreter": true,
+    "web_search": false
+  },
+  "actions": [
+    {
+      "auth": {
+        "type": "oauth",
+        "authorization_url": "https://app.studiobook.example/oauth/authorize",
+        "token_url": "https://app.studiobook.example/oauth/token",
+        "scope": "bookings:read bookings:write",
+        "token_exchange_method": "default_post"
+      },
+      "schema": "{\n \"openapi\": \"3.0.3\",\n \"info\": {\n  \"title\": \"StudioBook API\",\n  \"version\": \"1\"\n },\n \"servers\": [\n  {\n   \"url\": \"https://{tenant}.studiobook.example/api\",\n   \"variables\": {\n    \"tenant\": {\n     \"default\": \"app\"\n    }\n   }\n  }\n ],\n \"paths\": {\n  \"/classes\": {\n   \"get\": {\n    \"operationId\": \"list-classes\",\n    \"summary\": \"List upcoming classes\",\n    \"parameters\": [\n     {\n      \"$ref\": \"#/components/parameters/From\"\n     },\n     {\n      \"name\": \"teacher\",\n      \"in\": \"query\",\n      \"schema\": {\n       \"type\": \"string\"\n      }\n     }\n    ],\n    \"responses\": {\n     \"200\": {\n      \"description\": \"ok\"\n     }\n    }\n   }\n  },\n  \"/bookings\": {\n   \"get\": {\n    \"operationId\": \"listMyBookings\",\n    \"summary\": \"List the signed-in member's bookings\",\n    \"responses\": {\n     \"200\": {\n      \"description\": \"ok\"\n     }\n    }\n   },\n   \"post\": {\n    \"operationId\": \"createBooking\",\n    \"summary\": \"Book a place in a class\",\n    \"x-openai-isConsequential\": true,\n    \"requestBody\": {\n     \"required\": true,\n     \"content\": {\n      \"application/json\": {\n       \"schema\": {\n        \"type\": \"object\",\n        \"required\": [\n         \"class_id\"\n        ],\n        \"properties\": {\n         \"class_id\": {\n          \"type\": \"string\"\n         },\n         \"guests\": {\n          \"type\": \"integer\",\n          \"minimum\": 0,\n          \"maximum\": 2,\n          \"default\": 0\n         },\n         \"note\": {\n          \"type\": \"string\",\n          \"nullable\": true\n         }\n        }\n       }\n      }\n     }\n    },\n    \"responses\": {\n     \"201\": {\n      \"description\": \"created\"\n     }\n    }\n   }\n  },\n  \"/bookings/{booking_id}\": {\n   \"parameters\": [\n    {\n     \"name\": \"booking_id\",\n     \"in\": \"path\",\n     \"required\": true,\n     \"schema\": {\n      \"type\": \"string\"\n     }\n    }\n   ],\n   \"patch\": {\n    \"operationId\": \"updateBooking\",\n    \"summary\": \"Change the guest count or note on a booking\",\n    \"requestBody\": {\n     \"content\": {\n      \"application/json\": {\n       \"schema\": {\n        \"type\": \"object\",\n        \"properties\": {\n         \"guests\": {\n          \"type\": \"integer\"\n         },\n         \"note\": {\n          \"type\": \"string\"\n         }\n        }\n       }\n      }\n     }\n    },\n    \"responses\": {\n     \"200\": {\n      \"description\": \"ok\"\n     }\n    }\n   },\n   \"delete\": {\n    \"operationId\": \"cancelBooking\",\n    \"summary\": \"Cancel a booking\",\n    \"x-openai-isConsequential\": true,\n    \"responses\": {\n     \"204\": {\n      \"description\": \"cancelled\"\n     }\n    }\n   }\n  },\n  \"/members/me/waiver\": {\n   \"post\": {\n    \"summary\": \"Upload a signed waiver\",\n    \"requestBody\": {\n     \"content\": {\n      \"multipart/form-data\": {\n       \"schema\": {\n        \"type\": \"object\",\n        \"properties\": {\n         \"file\": {\n          \"type\": \"string\",\n          \"format\": \"binary\"\n         }\n        }\n       }\n      }\n     }\n    },\n    \"responses\": {\n     \"201\": {\n      \"description\": \"stored\"\n     }\n    }\n   }\n  }\n },\n \"components\": {\n  \"parameters\": {\n   \"From\": {\n    \"name\": \"from\",\n    \"in\": \"query\",\n    \"description\": \"First day to list, YYYY-MM-DD\",\n    \"schema\": {\n     \"type\": \"string\",\n     \"format\": \"date\"\n    }\n   }\n  },\n  \"securitySchemes\": {\n   \"oauth\": {\n    \"type\": \"oauth2\",\n    \"flows\": {\n     \"authorizationCode\": {\n      \"authorizationUrl\": \"https://app.studiobook.example/oauth/authorize\",\n      \"tokenUrl\": \"https://app.studiobook.example/oauth/token\",\n      \"scopes\": {\n       \"bookings:read\": \"Read bookings\",\n       \"bookings:write\": \"Create and cancel bookings\"\n      }\n     }\n    }\n   }\n  }\n }\n}"
+    }
+  ]
+}
