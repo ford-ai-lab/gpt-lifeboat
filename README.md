@@ -1,5 +1,7 @@
 # gpt-lifeboat
 
+[![As seen on Open Source Alternatives](https://www.opensourcealternatives.to/badge-osa.svg)](https://www.opensourcealternatives.to)
+
 Move a Custom GPT out of ChatGPT before it is retired: instructions, knowledge file list and
 **actions** become a Claude skill, a runnable MCP server and a plain system prompt.
 
